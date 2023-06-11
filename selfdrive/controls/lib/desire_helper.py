@@ -1,4 +1,5 @@
 from cereal import log
+from system.swaglog import cloudlog
 from common.conversions import Conversions as CV
 from common.realtime import DT_MDL
 
@@ -7,6 +8,8 @@ LaneChangeDirection = log.LateralPlan.LaneChangeDirection
 
 LANE_CHANGE_SPEED_MIN = 20 * CV.MPH_TO_MS
 LANE_CHANGE_TIME_MAX = 10.
+LANE_CHANGE_FACE_POSE_YAW_MIN = 0.5 # radians
+LANE_CHANGE_LOOK_BEHIND_TIME = 2.0
 
 DESIRES = {
   LaneChangeDirection.none: {
@@ -36,14 +39,20 @@ class DesireHelper:
     self.lane_change_direction = LaneChangeDirection.none
     self.lane_change_timer = 0.0
     self.lane_change_ll_prob = 1.0
+    self.look_behind_timer = 0.0
     self.keep_pulse_timer = 0.0
     self.prev_one_blinker = False
     self.desire = log.LateralPlan.Desire.none
 
-  def update(self, carstate, lateral_active, lane_change_prob):
+  def update(self, carstate, driver_state, lateral_active, lane_change_prob):
     v_ego = carstate.vEgo
     one_blinker = carstate.leftBlinker != carstate.rightBlinker
     below_lane_change_speed = v_ego < LANE_CHANGE_SPEED_MIN
+
+    is_rhd = driver_state.wheelOnRightProb > 0.5
+    driver_data = driver_state.leftDriverData if is_rhd else driver_state.rightDriverData
+    face_pose_yaw = driver_data.faceOrientation[2]
+    cloudlog.info("face_pose_yaw: %.2f", face_pose_yaw)
 
     if not lateral_active or self.lane_change_timer > LANE_CHANGE_TIME_MAX:
       self.lane_change_state = LaneChangeState.off
@@ -59,7 +68,9 @@ class DesireHelper:
         # Set lane change direction
         self.lane_change_direction = LaneChangeDirection.left if \
           carstate.leftBlinker else LaneChangeDirection.right
-
+        
+        looked_behind_for_long_enough = self.look_behind_timer > LANE_CHANGE_LOOK_BEHIND_TIME
+        
         torque_applied = carstate.steeringPressed and \
                          ((carstate.steeringTorque > 0 and self.lane_change_direction == LaneChangeDirection.left) or
                           (carstate.steeringTorque < 0 and self.lane_change_direction == LaneChangeDirection.right))
@@ -69,7 +80,7 @@ class DesireHelper:
 
         if not one_blinker or below_lane_change_speed:
           self.lane_change_state = LaneChangeState.off
-        elif torque_applied and not blindspot_detected:
+        elif (torque_applied or looked_behind_for_long_enough) and not blindspot_detected:
           self.lane_change_state = LaneChangeState.laneChangeStarting
 
       # LaneChangeState.laneChangeStarting
@@ -97,6 +108,14 @@ class DesireHelper:
       self.lane_change_timer = 0.0
     else:
       self.lane_change_timer += DT_MDL
+
+    if self.lane_change_state == LaneChangeState.preLaneChange:
+      cloudlog.info("look_behind_timer: %.2f", self.look_behind_timer)
+      if (face_pose_yaw > LANE_CHANGE_FACE_POSE_YAW_MIN and self.lane_change_direction == LaneChangeDirection.left) or \
+        (face_pose_yaw < -LANE_CHANGE_FACE_POSE_YAW_MIN and self.lane_change_direction == LaneChangeDirection.right):
+          self.look_behind_timer += DT_MDL
+      elif abs(face_pose_yaw) <= LANE_CHANGE_FACE_POSE_YAW_MIN:
+        self.look_behind_timer = 0.0
 
     self.prev_one_blinker = one_blinker
 
