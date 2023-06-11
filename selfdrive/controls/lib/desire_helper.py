@@ -8,7 +8,7 @@ LaneChangeDirection = log.LateralPlan.LaneChangeDirection
 
 LANE_CHANGE_SPEED_MIN = 20 * CV.MPH_TO_MS
 LANE_CHANGE_TIME_MAX = 10.
-LANE_CHANGE_FACE_POSE_YAW_MIN = 0.5 # radians
+LANE_CHANGE_FACE_POSE_YAW_MIN = 0.3 # radians
 LANE_CHANGE_LOOK_BEHIND_TIME = 2.0
 
 DESIRES = {
@@ -44,14 +44,12 @@ class DesireHelper:
     self.prev_one_blinker = False
     self.desire = log.LateralPlan.Desire.none
 
-  def update(self, carstate, driver_state, lateral_active, lane_change_prob):
+  def update(self, carstate, driver_monitoring_state, lateral_active, lane_change_prob):
     v_ego = carstate.vEgo
     one_blinker = carstate.leftBlinker != carstate.rightBlinker
     below_lane_change_speed = v_ego < LANE_CHANGE_SPEED_MIN
 
-    is_rhd = driver_state.wheelOnRightProb > 0.5
-    driver_data = driver_state.leftDriverData if is_rhd else driver_state.rightDriverData
-    face_pose_yaw = driver_data.faceOrientation[2]
+    face_pose_yaw = driver_monitoring_state.yawError
     cloudlog.info("face_pose_yaw: %.2f", face_pose_yaw)
 
     if not lateral_active or self.lane_change_timer > LANE_CHANGE_TIME_MAX:
@@ -112,8 +110,8 @@ class DesireHelper:
 
     if self.lane_change_state == LaneChangeState.preLaneChange:
       cloudlog.info("look_behind_timer: %.2f", self.look_behind_timer)
-      if (face_pose_yaw > LANE_CHANGE_FACE_POSE_YAW_MIN and self.lane_change_direction == LaneChangeDirection.left) or \
-        (face_pose_yaw < -LANE_CHANGE_FACE_POSE_YAW_MIN and self.lane_change_direction == LaneChangeDirection.right):
+      if (face_pose_yaw < -LANE_CHANGE_FACE_POSE_YAW_MIN and self.lane_change_direction == LaneChangeDirection.left) or \
+        (face_pose_yaw > LANE_CHANGE_FACE_POSE_YAW_MIN and self.lane_change_direction == LaneChangeDirection.right):
           self.look_behind_timer += DT_MDL
       elif abs(face_pose_yaw) <= LANE_CHANGE_FACE_POSE_YAW_MIN:
         self.look_behind_timer = 0.0
