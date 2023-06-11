@@ -69,6 +69,7 @@ def dmonitoringd_thread(sm=None, pm=None):
       "isDistracted": driver_status.driver_distracted,
       "distractedType": sum(driver_status.distracted_types),
       "awarenessStatus": driver_status.awareness,
+      "yaw_error": driver_status.yaw_error,
       "posePitchOffset": driver_status.pose.pitch_offseter.filtered_stat.mean(),
       "posePitchValidCount": driver_status.pose.pitch_offseter.filtered_stat.n,
       "poseYawOffset": driver_status.pose.yaw_offseter.filtered_stat.mean(),
