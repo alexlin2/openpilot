@@ -135,7 +135,7 @@ class DriverStatus():
     self.ee1_calibrated = False
     self.ee2_calibrated = False
 
-    self.yaw_error = 0.
+    self.yawError = 0.
     self.awareness = 1.
     self.awareness_active = 1.
     self.awareness_passive = 1.
@@ -204,7 +204,7 @@ class DriverStatus():
       yaw_error = self.pose.yaw - min(max(self.pose.yaw_offseter.filtered_stat.mean(),
                                                     self.settings._YAW_MIN_OFFSET), self.settings._YAW_MAX_OFFSET)
     pitch_error = 0 if pitch_error > 0 else abs(pitch_error) # no positive pitch limit
-    self.yaw_error = yaw_error
+    self.yawError = yaw_error
     if pitch_error > (self.settings._POSE_PITCH_THRESHOLD*self.pose.cfactor_pitch if self.pose_calibrated else self.settings._PITCH_NATURAL_THRESHOLD) or \
        abs(yaw_error) > self.settings._POSE_YAW_THRESHOLD*self.pose.cfactor_yaw:
       distracted_types.append(DistractedType.DISTRACTED_POSE)
